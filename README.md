@@ -2,19 +2,13 @@
 
 A single‑file, production‑ready fullscreen clock optimized for iPad (works great on desktop too). It supports tap‑to‑fullscreen, optional screen wake lock, precise ticking, and a customizable UI (12/24‑hour, date visibility, font, and theme) with settings saved in local storage.
 
-## 💡 Recommended repository name
-
-**`fullscreen-clock`**
-(Alternatives: `ipad-fullscreen-clock`, `big-clock`, or `wall-clock-web`)
-
 ## 📦 What’s in this repo
 
 ```
 fullscreen-clock/
 ├─ index.html         # Production build (single file)
 ├─ README.md          # This file
-├─ LICENSE            # MIT (recommended)
-└─ .gitignore         # Optional (node_modules, build artifacts if you add tooling later)
+└─ LICENSE            # MIT (recommended)
 ```
 
 > The project is dependency‑free and runs directly from `index.html`. No build step required.
@@ -163,6 +157,5 @@ A: On recent iPadOS/Safari versions, the Wake Lock API works. Otherwise, use ful
 
 **Q: Can I change the font size?**
 A: The size is responsive, but you can tweak `clamp()` in `.time` within `index.html` if you want a different min/max.
-
 **Q: Can I run it on a TV or kiosk?**
 A: Yes—open in a modern browser, go fullscreen, optionally enable Keep Awake, and hide mouse via fullscreen mode.
