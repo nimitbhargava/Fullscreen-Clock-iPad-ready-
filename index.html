@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no" />
+  <title>Fullscreen Clock</title>
+
+  <!-- Progressive Web App-ish (single-file friendly) -->
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="theme-color" content="#0b0b0e" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
+  <!-- iOS home screen icon (embedded 180x180 PNG as data URI) -->
+  <link rel="apple-touch-icon" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAALQAAAC0CAYAAACbl0H0AAAACXBIWXMAAAsSAAALEgHS3X78AAAEtUlEQVR4nO3dMW7jQBhA4f9/2b8g9c5oMM0p3c1mC2Qb3D4kqCNgMlyy1kXbXoA8y9w9L7rF3XGm7Hqf6Xr0qkJswb8UQxJXz8n8l1k2mS0m4V2b8WcQZ5w9A4T5k0u7k8Y7qk9k9y9Q8tA2YJcY5g1B3yC9w8j1J8j1nYv7tYzq5aUQ1n7C0H0a7+5lq6dPz8+fX3+q1wC2p0c4Vq0h5Wm8QxQqFQqFQqFQqFQqFQqFQqFQqFQqFQqFQqFQqFQqFQqFQqFQqFQqFQqFQqFQqFf4G2v4p7m7c6cQ3hA7R3r3m9w3v0L6o8Y4c9z7j3m8wYlT5m2yG8M1d7v3i7mYJ9oX1Cw6iQmYv2A2a4Z2kP6r0C2Z+Zg1wYp9cJmS3wQe3H0k8f3lT3hV7S5yQnB8bJ9lK0Xo7c3X3W+f3c6s+e5Tz8Tg7k7y9sX2Vf8i8oT4n8k4n8k4n8k4n8k4n8k4n8k4n8k4n8k4n8k4n8k4n8k4n8k4n8k4n8k4n8k4n8k4n8l8Y7c5wD2g7l1H/0eQ8yXHjYAAAAASUVORK5CYII=" />
+
+  <style>
+    /* --- Design Tokens --- */
+    :root {
+      --bg: #0b0b0e;          /* dark default */
+      --fg: #e7e7ec;
+      --muted: #9a9aa3;
+      --glass: rgba(255,255,255,0.06);
+      --glass-border: rgba(255,255,255,0.12);
+      --accent: #3a86ff;
+      --font: ui-rounded, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji", sans-serif;
+    }
+    :root.theme-light { --bg: #ffffff; --fg: #0b0b0e; --muted:#6b6b75; --glass: rgba(0,0,0,0.04); --glass-border: rgba(0,0,0,0.08); }
+    :root.theme-amoled { --bg: #000000; --fg: #eaeaf0; --muted:#9a9aa3; --glass: rgba(255,255,255,0.05); --glass-border: rgba(255,255,255,0.10); }
+    :root.font-mono { --font: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
+    :root.font-sans { --font: ui-rounded, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji", sans-serif; }
+
+    /* --- Base Layout --- */
+    html, body { height: 100%; }
+    body {
+      margin: 0; background: var(--bg); color: var(--fg);
+      font-family: var(--font);
+      -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale;
+      display: grid; place-items: center; position: relative;
+      user-select: none; touch-action: manipulation;
+    }
+    main.container { text-align: center; width: 100vw; padding: 6vh 4vw; box-sizing: border-box; }
+
+    .time { font-variant-numeric: tabular-nums; letter-spacing: 0.02em; line-height: 1.05; margin: 0; font-weight: 600; font-size: clamp(42px, 16vw, 192px); }
+    .date { font-variant-numeric: tabular-nums; margin-top: 2vh; font-size: clamp(16px, 3.6vw, 36px); color: var(--muted); }
+
+    /* --- Controls --- */
+    .controls { position: fixed; top: env(safe-area-inset-top, 12px); right: env(safe-area-inset-right, 12px); display: flex; gap: 10px; z-index: 10; }
+    .btn { -webkit-tap-highlight-color: transparent; appearance: none; border: 1px solid var(--glass-border); background: var(--glass); color: var(--fg); padding: 10px 14px; border-radius: 14px; font-size: 16px; line-height: 1; cursor: pointer; backdrop-filter: blur(8px); transition: transform 0.1s ease, background 0.2s ease, border-color 0.2s ease; }
+    .btn:active { transform: scale(0.98); }
+    .btn[aria-pressed="true"] { border-color: var(--accent); }
+    .icon { font-size: 18px; margin-right: 6px; }
+
+    .hint { position: fixed; bottom: env(safe-area-inset-bottom, 18px); left: 50%; transform: translateX(-50%); font-size: 14px; color: var(--muted); opacity: 0.85; text-align: center; padding: 6px 10px; border-radius: 10px; background: rgba(127,127,127,0.08); border: 1px solid rgba(127,127,127,0.16); }
+
+    /* Hide cursor on desktop in fullscreen for a clean look */
+    html.fullscreen, html.fullscreen * { cursor: none; }
+
+    @supports (height: 100dvh) { body { min-height: 100dvh; } }
+
+    /* --- Settings Modal --- */
+    .modal { position: fixed; inset: 0; display: none; place-items: center; background: rgba(0,0,0,0.35); backdrop-filter: blur(2px); z-index: 20; }
+    .modal[open] { display: grid; }
+    .sheet { width: min(560px, 92vw); background: var(--bg); color: var(--fg); border: 1px solid var(--glass-border); border-radius: 18px; padding: 18px; box-shadow: 0 20px 60px rgba(0,0,0,0.35); }
+    .row { display: flex; align-items: center; justify-content: space-between; padding: 10px 0; border-bottom: 1px dashed rgba(127,127,127,0.25); }
+    .row:last-child { border-bottom: 0; }
+    .row > label { font-size: 15px; color: var(--muted); }
+    select, input[type="checkbox"] { font-size: 15px; padding: 8px 10px; border-radius: 10px; border: 1px solid var(--glass-border); background: var(--glass); color: var(--fg); }
+  </style>
+</head>
+<body>
+  <div class="controls" role="group" aria-label="Controls">
+    <button id="fsBtn" class="btn" type="button" title="Toggle Fullscreen" aria-pressed="false"><span class="icon">⛶</span><span class="label">Fullscreen</span></button>
+    <button id="wakeBtn" class="btn" type="button" title="Keep screen awake" aria-pressed="false"><span class="icon">🔒</span><span class="label">Keep Awake</span></button>
+    <button id="settingsBtn" class="btn" type="button" title="Settings" aria-pressed="false"><span class="icon">⚙️</span><span class="label">Settings</span></button>
+  </div>
+
+  <main class="container" id="main" role="main" aria-live="polite">
+    <h1 id="clock" class="time" aria-label="Current time">00:00:00</h1>
+    <div id="date" class="date" aria-label="Current date"></div>
+  </main>
+
+  <div class="hint" id="hint">Tap clock (or press F) for fullscreen • Add to Home Screen on iPad for best experience</div>
+
+  <!-- Settings Modal -->
+  <dialog id="modal" class="modal" aria-labelledby="modalTitle">
+    <div class="sheet" role="document">
+      <h2 id="modalTitle" style="margin:0 0 8px 0; font-size:18px">Clock Settings</h2>
+      <div class="row">
+        <label for="showSeconds">Show seconds</label>
+        <input id="showSeconds" type="checkbox" />
+      </div>
+      <div class="row">
+        <label for="showDate">Show date</label>
+        <input id="showDate" type="checkbox" />
+      </div>
+      <div class="row">
+        <label for="use24h">24-hour time</label>
+        <input id="use24h" type="checkbox" />
+      </div>
+      <div class="row">
+        <label for="fontSel">Font</label>
+        <select id="fontSel">
+          <option value="sans">Sans</option>
+          <option value="mono">Monospace</option>
+        </select>
+      </div>
+      <div class="row">
+        <label for="themeSel">Theme</label>
+        <select id="themeSel">
+          <option value="dark">Dark</option>
+          <option value="amoled">AMOLED</option>
+          <option value="light">Light</option>
+        </select>
+      </div>
+      <div style="display:flex; gap:10px; justify-content:flex-end; padding-top:14px">
+        <button id="cancelBtn" class="btn" type="button">Close</button>
+        <button id="saveBtn" class="btn" type="button">Save</button>
+      </div>
+    </div>
+  </dialog>
+
+  <script>
+    (function() {
+      const $ = (id) => document.getElementById(id);
+      const clockEl = $('clock');
+      const dateEl = $('date');
+      const fsBtn = $('fsBtn');
+      const wakeBtn = $('wakeBtn');
+      const settingsBtn = $('settingsBtn');
+      const modal = $('modal');
+      const showSeconds = $('showSeconds');
+      const showDate = $('showDate');
+      const use24h = $('use24h');
+      const fontSel = $('fontSel');
+      const themeSel = $('themeSel');
+      const hint = $('hint');
+
+      const DEFAULTS = { showSeconds: true, showDate: true, use24h: undefined, font: 'sans', theme: 'dark' };
+
+      // --- Settings persistence ---
+      const store = {
+        key: 'clock.settings.v1',
+        load() {
+          try { return Object.assign({}, DEFAULTS, JSON.parse(localStorage.getItem(this.key)||'{}')); } catch(_) { return {...DEFAULTS}; }
+        },
+        save(v) {
+          try { localStorage.setItem(this.key, JSON.stringify(v)); } catch(_) {}
+        }
+      };
+      let settings = store.load();
+
+      // Apply theme/font
+      function applyLook() {
+        document.documentElement.classList.toggle('font-mono', settings.font === 'mono');
+        document.documentElement.classList.toggle('font-sans', settings.font !== 'mono');
+        document.documentElement.classList.remove('theme-light','theme-amoled');
+        if (settings.theme === 'light') document.documentElement.classList.add('theme-light');
+        if (settings.theme === 'amoled') document.documentElement.classList.add('theme-amoled');
+      }
+
+      // Intl formatters (rebuilt when 12/24 or seconds changes)
+      let timeFmt, dateFmt;
+      function buildFormatters() {
+        timeFmt = new Intl.DateTimeFormat(undefined, {
+          hour: 'numeric', minute: '2-digit', second: settings.showSeconds ? '2-digit' : undefined,
+          hour12: settings.use24h === undefined ? undefined : !settings.use24h
+        });
+        dateFmt = new Intl.DateTimeFormat(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+      }
+
+      function render(now = new Date()) {
+        clockEl.textContent = timeFmt.format(now);
+        dateEl.style.display = settings.showDate ? '' : 'none';
+        if (settings.showDate) dateEl.textContent = dateFmt.format(now);
+      }
+
+      function preciseTicker() {
+        // Align to next second boundary for stable ticking
+        const now = new Date();
+        const ms = 1000 - now.getMilliseconds();
+        setTimeout(() => {
+          const n = new Date();
+          render(n);
+          // Use requestAnimationFrame to minimize drift when seconds are hidden
+          if (settings.showSeconds) preciseTicker();
+          else requestAnimationFrame(preciseTicker);
+        }, Math.max(0, ms));
+      }
+
+      // --- Fullscreen helpers ---
+      const inFS = () => document.fullscreenElement || document.webkitFullscreenElement;
+      const requestFS = () => (document.documentElement.requestFullscreen?.() || document.documentElement.webkitRequestFullscreen?.());
+      const exitFS = () => (document.exitFullscreen?.() || document.webkitExitFullscreen?.());
+      function syncFSBtn() {
+        const isFS = !!inFS();
+        fsBtn.setAttribute('aria-pressed', String(isFS));
+        document.documentElement.classList.toggle('fullscreen', isFS);
+        fsBtn.querySelector('.label').textContent = isFS ? 'Exit Fullscreen' : 'Fullscreen';
+      }
+
+      fsBtn.addEventListener('click', () => { inFS() ? exitFS() : requestFS(); });
+      document.addEventListener('fullscreenchange', syncFSBtn);
+      document.addEventListener('webkitfullscreenchange', syncFSBtn);
+
+      // Tap clock area to toggle fullscreen (avoid when tapping buttons)
+      $('main').addEventListener('click', (e) => { if (!e.target.closest('.btn')) inFS() ? exitFS() : requestFS(); }, { passive: true });
+
+      // Keyboard shortcuts (desktop)
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'f' || e.key === 'F') { e.preventDefault(); inFS() ? exitFS() : requestFS(); }
+        if (e.key === 'k' || e.key === 'K') { e.preventDefault(); toggleWake(); }
+        if (e.key === 's' || e.key === 'S') { e.preventDefault(); openSettings(); }
+      });
+
+      // --- Wake Lock ---
+      let wakeLock = null; let wakeWanted = false;
+      async function requestWakeLock() {
+        try {
+          wakeLock = await navigator.wakeLock.request('screen');
+          wakeBtn.setAttribute('aria-pressed', 'true');
+          wakeBtn.querySelector('.label').textContent = 'Keep Awake: ON';
+          wakeLock.addEventListener('release', () => {
+            wakeLock = null; wakeBtn.setAttribute('aria-pressed', 'false');
+            wakeBtn.querySelector('.label').textContent = 'Keep Awake';
+          });
+        } catch (err) {
+          console.warn('Wake Lock not available:', err);
+          // No intrusive alert; show subtle hint
+          hint.textContent = 'Wake Lock unsupported here. Tip: stay in fullscreen and set Auto-Lock to Never on iPad.';
+          setTimeout(() => { hint.style.display = 'none'; }, 6000);
+          wakeWanted = false; wakeBtn.setAttribute('aria-pressed', 'false');
+        }
+      }
+      async function toggleWake() {
+        wakeWanted = !wakeWanted;
+        if (wakeWanted && !wakeLock) await requestWakeLock();
+        else if (!wakeWanted && wakeLock) { await wakeLock.release(); wakeLock = null; }
+      }
+      wakeBtn.addEventListener('click', toggleWake);
+      document.addEventListener('visibilitychange', async () => { if (document.visibilityState === 'visible' && wakeWanted && !wakeLock) await requestWakeLock(); });
+
+      // --- Settings modal ---
+      function syncControlsFromSettings() {
+        showSeconds.checked = !!settings.showSeconds;
+        showDate.checked = !!settings.showDate;
+        use24h.checked = !!settings.use24h;
+        fontSel.value = settings.font || 'sans';
+        themeSel.value = settings.theme || 'dark';
+      }
+      function openSettings() {
+        syncControlsFromSettings();
+        modal.setAttribute('open', '');
+      }
+      function closeSettings() { modal.removeAttribute('open'); }
+
+      settingsBtn.addEventListener('click', openSettings);
+      $('cancelBtn').addEventListener('click', closeSettings);
+      $('saveBtn').addEventListener('click', () => {
+        settings.showSeconds = showSeconds.checked;
+        settings.showDate = showDate.checked;
+        settings.use24h = use24h.checked;
+        settings.font = fontSel.value;
+        settings.theme = themeSel.value;
+        store.save(settings);
+        applyLook(); buildFormatters(); render();
+        closeSettings();
+      });
+
+      // Init from query params (one-time override) e.g., ?seconds=0&date=0&h24=1&font=mono&theme=amoled
+      (function initFromQuery() {
+        const p = new URLSearchParams(location.search);
+        if (p.has('seconds')) settings.showSeconds = p.get('seconds') === '1';
+        if (p.has('date')) settings.showDate = p.get('date') === '1';
+        if (p.has('h24')) settings.use24h = p.get('h24') === '1';
+        if (p.has('font')) settings.font = (p.get('font') === 'mono' ? 'mono' : 'sans');
+        if (p.has('theme')) settings.theme = ['dark','light','amoled'].includes(p.get('theme')) ? p.get('theme') : settings.theme;
+      })();
+
+      // Startup
+      applyLook();
+      buildFormatters();
+      syncFSBtn();
+      render();
+      preciseTicker();
+
+      // Prevent double-tap zoom
+      let lastTouchTime = 0;
+      document.addEventListener('touchend', (e) => { const now = Date.now(); if (now - lastTouchTime <= 300) e.preventDefault(); lastTouchTime = now; }, { passive: false });
+
+      // Hide hint after a few seconds to keep UI clean
+      setTimeout(() => { hint && (hint.style.display = 'none'); }, 5000);
+    })();
+  </script>
+</body>
+</html>
